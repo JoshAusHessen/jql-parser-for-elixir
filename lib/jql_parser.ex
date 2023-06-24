@@ -1,10 +1,24 @@
 defmodule JQLParser do
 
+  ###
+  #Callbacks
+  ###
+
+  @callback exec_or(left :: any, right :: any) :: any
+  @callback exec_and(left :: any, right :: any) :: any
+  @callback exec_par(value :: any) :: any
+  @callback exec_not(value :: any) :: any
+  @callback exec_string(value :: any) :: any
+  @callback exec_other(value :: any) :: any
+
   @token_specs [
     %{regex: ~r/^or(?=[ (]|$)/, token: :or},
     %{regex: ~r/^and(?=[ (]|$)/, token: :and},
-    %{regex: ~r/^not(?=[ (]|$)(?![ ]+in)/, token: :not},
 
+    %{regex: ~r/^[(]/, token: :par_open},
+    %{regex: ~r/^[)]/, token: :par_close},
+
+    %{regex: ~r/^not(?=[ (]|$)(?![ ]+in)/, token: :not},
     %{regex: ~r/^empty(?=[ (]|$)/, token: :empty},
     %{regex: ~r/^is[ ]+not /, token: :is_not},
     %{regex: ~r/^is (?!not)/, token: :is},
@@ -12,8 +26,6 @@ defmodule JQLParser do
     %{regex: ~r/^not in(?=[ (]|$)/, token: :not_in},
     #%{regex: ~r/^order by /, token: :order_by},
 
-    %{regex: ~r/^[(]/, token: :par_open},
-    %{regex: ~r/^[)]/, token: :par_close},
 
     %{regex: ~r/^=/, token: :eq},
     %{regex: ~r/^<(?!=)/, token: :lt},
@@ -34,12 +46,14 @@ defmodule JQLParser do
     %{regex: ~r/^[^ \n]+$/, token: :other},
   ]
 
-  def parse(string) when is_binary(string) do
-    parse(getTokenList(string))
+  def parse(arg, implementation \\ DefaultJQLParser)
+
+  def parse(string, implementation) when is_binary(string) do
+    parse(getTokenList(string), implementation)
   end
 
-  def parse(list) do
-    parseOR(list)
+  def parse(list, implementation) do
+    parse_or(list, implementation)
   end
 
   ###
@@ -73,58 +87,43 @@ defmodule JQLParser do
   #Parser
   ###
 
-  defp parseOR(list) do
-    case parseAND(list) do
+  defp parse_or(list, implementation) do
+    case parse_and(list, implementation) do
       {value, []} -> {value, []}
       {valueL, [{:or, _} | tail]} -> 
-        {valueR, tail} = parseOR(tail)
-        {"(#{valueL} OR #{valueR})", tail}
+        {valueR, tail} = parse_or(tail, implementation)
+        {implementation.exec_or(valueL, valueR), tail}
       {value, list} -> {value, list}
     end
   end
 
-  defp parseAND(list) do
-    case parseEXP(list) do
+  defp parse_and(list, implementation) do
+    case parse_exp(list, implementation) do
       {value, []} -> {value, []}
       {valueL, [{:and, _} | tail]} -> 
-        {valueR, tail} = parseAND(tail)
-        {"(#{valueL} AND #{valueR})", tail}
+        {valueR, tail} = parse_and(tail, implementation)
+        {implementation.exec_and(valueL, valueR), tail}
       {value, list} -> {value, list}
     end
   end
 
-  defp parseEXP([token | list])do
+  defp parse_exp([token | list], implementation)do
     case token do
-      {:par_open, _} -> parseEXP_par_open(list)
-      {:not, _} -> parseEXP_not(list)
-      {:string, value} -> parseEXP_string(value, list)
-      token -> parseEXP_other([token | list])
+      {:par_open, _} -> parse_par(list, implementation)
+      {:not, _} -> 
+        {value, tail} = parse_exp(list, implementation)
+        {implementation.exec_not(value), tail}
+      {:string, value} -> {implementation.exec_string(value), list}
+      {:other, value} -> {implementation.exec_other(value), list}
     end
   end
 
-  defp parseEXP_par_open(list) do
-    case parseOR(list) do
-      {value, []} -> "(#{value})"
-      {value, [{:par_close, _} | tail]} -> {"(#{value})", tail}
+  defp parse_par(list, implementation) do
+    case parse_or(list, implementation) do
+      {value, []} -> implementation.exec_par(value)
+      {value, [{:par_close, _} | tail]} -> {implementation.exec_par(value), tail}
       _ -> nil
     end
   end
 
-  defp parseEXP_not(list) do
-    {value, tail} = parseEXP(list)
-    {"(NOT #{value})", tail}
-  end
-
-  defp parseEXP_string(string, list) do
-    value = string
-      |> String.replace(~r/^["']/, "")
-      |> String.replace(~r/["']$/, "")
-    {value, list}
-  end
-  
-  defp parseEXP_other([token | list]) do
-    case token do
-      {:other, value} -> {value, list}
-    end
-  end
 end
