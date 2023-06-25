@@ -6,10 +6,18 @@ defmodule JQLParser do
 
   @callback exec_or(left :: any, right :: any) :: any
   @callback exec_and(left :: any, right :: any) :: any
-  @callback exec_par(value :: any) :: any
   @callback exec_not(value :: any) :: any
-  @callback exec_string(value :: any) :: any
-  @callback exec_other(value :: any) :: any
+  @callback exec_not_in(value :: any, value :: any) :: any
+  @callback exec_in(value :: any, value :: any) :: any
+  @callback exec_is(value :: any, value :: any) :: any
+  @callback exec_is_in(value :: any, value :: any) :: any
+  @callback exec_eq(value :: any, value :: any) :: any
+  @callback exec_lt(value :: any, value :: any) :: any
+  @callback exec_gt(value :: any, value :: any) :: any
+  @callback exec_neq(value :: any, value :: any) :: any
+  @callback exec_leq(value :: any, value :: any) :: any
+  @callback exec_geq(value :: any, value :: any) :: any
+  #@callback exec_other(value :: any) :: any
 
   @token_specs [
     %{regex: ~r/^or(?=[ (]|$)/, token: :or},
@@ -17,15 +25,12 @@ defmodule JQLParser do
 
     %{regex: ~r/^[(]/, token: :par_open},
     %{regex: ~r/^[)]/, token: :par_close},
+    %{regex: ~r/^[,]/, token: :comma},
 
-    %{regex: ~r/^not(?=[ (]|$)(?![ ]+in)/, token: :not},
-    %{regex: ~r/^empty(?=[ (]|$)/, token: :empty},
-    %{regex: ~r/^is[ ]+not /, token: :is_not},
-    %{regex: ~r/^is (?!not)/, token: :is},
+    #expresions
+    %{regex: ~r/^not(?=[ (]|$)/, token: :not},
+    %{regex: ~r/^is(?=[ (]|$)/, token: :is},
     %{regex: ~r/^in(?=[ (]|$)/, token: :in},
-    %{regex: ~r/^not in(?=[ (]|$)/, token: :not_in},
-    #%{regex: ~r/^order by /, token: :order_by},
-
 
     %{regex: ~r/^=/, token: :eq},
     %{regex: ~r/^<(?!=)/, token: :lt},
@@ -37,13 +42,18 @@ defmodule JQLParser do
     #%{regex: ~r/^!~/, token: :not_contains},
 
     #literals
-    %{regex: ~r/^"[^"]*"/, token: :string},
-    %{regex: ~r/^'[^']*'/, token: :string},
+    %{regex: ~r/^"[^"]*"/, token: :literal},
+    %{regex: ~r/^'[^']*'/, token: :literal},
+    %{regex: ~r/^[^ ,;()]+(?=[ (),]|$)/, token: :literal},
+
+    #unused
+    %{regex: ~r/^empty(?=[ (]|$)/, token: :empty},
     %{regex: ~r/^-?\d+(?=[ (),]|$)/, token: :int},
     %{regex: ~r/^-?\d*.\d+(?=[ (),]|$)/, token: :float},
     %{regex: ~r/^-?\d*(,\d{3})*.\d+(?=[ (),]|$)/, token: :complex_float},
-    %{regex: ~r/^[^ \n]+(?=[ (),]|$)/, token: :other},
-    %{regex: ~r/^[^ \n]+$/, token: :other},
+    %{regex: ~r/^[^ \n,()]+(?=[ (),]|$)/, token: :other},
+
+    #%{regex: ~r/^order by /, token: :order_by},
   ]
 
   def parse(arg, implementation \\ DefaultJQLParser)
@@ -107,23 +117,66 @@ defmodule JQLParser do
     end
   end
 
-  defp parse_exp([token | list], implementation)do
-    case token do
-      {:par_open, _} -> parse_par(list, implementation)
-      {:not, _} -> 
-        {value, tail} = parse_exp(list, implementation)
-        {implementation.exec_not(value), tail}
-      {:string, value} -> {implementation.exec_string(value), list}
-      {:other, value} -> {implementation.exec_other(value), list}
-    end
-  end
-
-  defp parse_par(list, implementation) do
-    case parse_or(list, implementation) do
-      {value, []} -> implementation.exec_par(value)
-      {value, [{:par_close, _} | tail]} -> {implementation.exec_par(value), tail}
+  defp parse_exp([{:par_open, _} | tail], implementation)do
+    case parse_or(tail, implementation) do
+      {value, []} -> {value, []}
+      {value, [{:par_close, _} | tail]} -> {value, tail}
       _ -> nil
     end
   end
 
+  defp parse_exp([{:not, _} | tail], implementation)do
+    {value, tail} = parse_exp(tail, implementation)
+    {implementation.exec_not(value), tail}
+  end
+
+  defp parse_exp([{:literal, left} | tail], implementation)do
+    case tail do
+      [{:not, _}, {:in, _} | tail] ->
+        {right, tail} = parse_list(tail)
+        {implementation.exec_not_in(left, right), tail}
+      [{:in, _} | tail] ->
+        {right, tail} = parse_list(tail)
+        {implementation.exec_in(left, right), tail}
+      [{:is, _}, {:not, _}, {:literal, right} | tail] ->
+        {implementation.exec_is_not(left, right), tail}
+      [{:is, _}, {:literal, right} | tail] ->
+        {implementation.exec_is(left, right), tail}
+      [{:eq, _}, {:literal, right} | tail] -> 
+        {implementation.exec_eq(left, right), tail}
+      [{:lt, _}, {:literal, right} | tail] -> 
+        {implementation.exec_lt(left, right), tail}
+      [{:gt, _}, {:literal, right} | tail] -> 
+        {implementation.exec_gt(left, right), tail}
+      [{:neq, _}, {:literal, right} | tail] -> 
+        {implementation.exec_neq(left, right), tail}
+      [{:leq, _}, {:literal, right} | tail] -> 
+        {implementation.exec_leq(left, right), tail}
+      [{:geq, _}, {:literal, right} | tail] -> 
+        {implementation.exec_geq(left, right), tail}
+      _ -> {left, tail}
+    end
+  end
+  
+  defp parse_exp(list, _)do
+    {nil, list}
+  end
+
+  defp parse_list([{:par_open, _} | tail]) do
+    parse_list(tail)
+  end
+
+  defp parse_list([{:literal, value}, {:comma, _} | tail]) do
+    {value_list, tail} = parse_list(tail)
+    {[value | value_list], tail}
+  end
+
+  defp parse_list([{:literal, value}, {:par_close, _} | tail]) do
+    {[value], tail}
+  end
+
+  defp parse_list([{:par_close, _} | tail]) do
+    {[], tail}
+  end
+  
 end

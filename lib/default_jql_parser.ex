@@ -17,20 +17,53 @@ defmodule DefaultJQLParser do
   end
 
   @impl JQLParser
-  def exec_par(value) do
-    "(#{value})"
+  def exec_not_in(left, right) do
+    "(#{left} NOT IN #{right})"
   end
 
   @impl JQLParser
-  def exec_string(value) do
-    value = value
-      |> String.replace(~r/^["']/, "")
-      |> String.replace(~r/["']$/, "")
-    "#{value}"
+  def exec_in(left, right) do
+    "(#{left} IN #{right})"
   end
 
   @impl JQLParser
-  def exec_other(value) do
-    "#{value}"
+  def exec_is_in(left, right) do
+    "(#{left} IS IN #{right})"
   end
+
+  @impl JQLParser
+  def exec_is(left, right) do
+    "(#{left} IS #{right})"
+  end
+
+  @impl JQLParser
+  def exec_eq(left, right) do
+    "(#{left} = #{right})"
+  end
+
+  @impl JQLParser
+  def exec_lt(left, right) do
+    "(#{left} < #{right})"
+  end
+
+  @impl JQLParser
+  def exec_gt(left, right) do
+    "(#{left} > #{right})"
+  end
+
+  @impl JQLParser
+  def exec_neq(left, right) do
+    "(#{left} != #{right})"
+  end
+
+  @impl JQLParser
+  def exec_leq(left, right) do
+    "(#{left} <= #{right})"
+  end
+
+  @impl JQLParser
+  def exec_geq(left, right) do
+    "(#{left} >= #{right})"
+  end
+
 end
