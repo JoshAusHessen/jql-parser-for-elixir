@@ -67,7 +67,7 @@ defmodule JQLParser.Default do
   end
 
   @impl JQLParser
-  def exec_iteral(value) do
+  def exec_literal(value) do
     "(#{value})"
   end
 
