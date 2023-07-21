@@ -167,7 +167,7 @@ defmodule JQLParser do
         {implementation.exec_leq(left, right), tail}
       [{:geq, _}, {:literal, right} | tail] -> 
         {implementation.exec_geq(left, right), tail}
-      _ -> {exec_literal(left), tail}
+      _ -> {implementation.exec_literal(left), tail}
     end
   end
   
