@@ -16,7 +16,7 @@ defmodule JQLParser do
   @callback exec_neq(value :: any, value :: any) :: any
   @callback exec_leq(value :: any, value :: any) :: any
   @callback exec_geq(value :: any, value :: any) :: any
-  @callback exec_iteral(value :: any) :: any
+  @callback exec_literal(value :: any) :: any
   @callback exec_other(value :: any) :: any
 
   @token_specs [
@@ -56,7 +56,7 @@ defmodule JQLParser do
     #%{regex: ~r/^order by /, token: :order_by},
   ]
 
-  def parse(arg, implementation \\ DefaultJQLParser)
+  def parse(arg, implementation \\ JQLParser.Default)
 
   def parse(string, implementation) when is_binary(string) do
     parse(getTokenList(string), implementation)
@@ -167,7 +167,7 @@ defmodule JQLParser do
         {implementation.exec_leq(left, right), tail}
       [{:geq, _}, {:literal, right} | tail] -> 
         {implementation.exec_geq(left, right), tail}
-      _ -> {left, tail}
+      _ -> {exec_literal(left), tail}
     end
   end
   

@@ -1,4 +1,4 @@
-defmodule DefaultJQLParser do
+defmodule JQLParser.Default do
   @behaviour JQLParser
 
   @impl JQLParser
