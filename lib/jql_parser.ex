@@ -1,5 +1,4 @@
 defmodule JQLParser do
-
   ###
   #Callbacks
   ###
@@ -10,14 +9,15 @@ defmodule JQLParser do
   @callback exec_not_in(value :: any, value :: any) :: any
   @callback exec_in(value :: any, value :: any) :: any
   @callback exec_is(value :: any, value :: any) :: any
-  @callback exec_is_in(value :: any, value :: any) :: any
+  @callback exec_is_not(value :: any, value :: any) :: any
   @callback exec_eq(value :: any, value :: any) :: any
   @callback exec_lt(value :: any, value :: any) :: any
   @callback exec_gt(value :: any, value :: any) :: any
   @callback exec_neq(value :: any, value :: any) :: any
   @callback exec_leq(value :: any, value :: any) :: any
   @callback exec_geq(value :: any, value :: any) :: any
-  #@callback exec_other(value :: any) :: any
+  @callback exec_iteral(value :: any) :: any
+  @callback exec_other(value :: any) :: any
 
   @token_specs [
     %{regex: ~r/^or(?=[ (]|$)/, token: :or},
@@ -42,9 +42,9 @@ defmodule JQLParser do
     #%{regex: ~r/^!~/, token: :not_contains},
 
     #literals
-    %{regex: ~r/^"[^"]*"/, token: :literal},
-    %{regex: ~r/^'[^']*'/, token: :literal},
-    %{regex: ~r/^[^ ,;()]+(?=[ (),]|$)/, token: :literal},
+    %{regex: ~r/^"[^"]*"/, token: :string},
+    %{regex: ~r/^'[^']*'/, token: :string},
+    %{regex: ~r/^[^ ,;()]+(?=[ ,;()]|$)/, token: :literal},
 
     #unused
     %{regex: ~r/^empty(?=[ (]|$)/, token: :empty},
@@ -89,7 +89,20 @@ defmodule JQLParser do
     end)
     if spec != nil do
       [match | _] = Regex.run(spec.regex, string, [:first])
-      {{spec.token, match}, String.trim_leading(string, match)}
+      {
+        trim_string({spec.token, match}), 
+        String.trim_leading(string, match)
+      }
+    end
+  end
+
+  def trim_string({token, match}) do
+    if token == :string do
+      match = String.trim_leading(match, String.first(match))
+      match = String.trim_trailing(match, String.last(match))
+      {:literal, match}
+    else
+      {token, match}
     end
   end
 
@@ -163,19 +176,31 @@ defmodule JQLParser do
   end
 
   defp parse_list([{:par_open, _} | tail]) do
-    parse_list(tail)
+    parse_list_helper(tail)
   end
 
-  defp parse_list([{:literal, value}, {:comma, _} | tail]) do
-    {value_list, tail} = parse_list(tail)
+  defp parse_list([{:literal, _} = token | _]) do
+    [token]
+  end
+
+  defp parse_list(list) do
+    {nil, list}
+  end
+
+  defp parse_list_helper([{:literal, value} | [{:comma, _} | tail]]) do
+    {value_list, tail} = parse_list_helper(tail)
     {[value | value_list], tail}
   end
 
-  defp parse_list([{:literal, value}, {:par_close, _} | tail]) do
+  defp parse_list_helper([{:literal, value} | [{:par_close, _} | tail]]) do
     {[value], tail}
   end
 
-  defp parse_list([{:par_close, _} | tail]) do
+  defp parse_list_helper([{:literal, value} | []]) do
+    {[value], []}
+  end
+
+  defp parse_list_helper([{:par_close, _} | tail]) do
     {[], tail}
   end
   

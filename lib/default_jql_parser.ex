@@ -23,12 +23,12 @@ defmodule DefaultJQLParser do
 
   @impl JQLParser
   def exec_in(left, right) do
-    "(#{left} IN #{right})"
+    "(#{left} IN #{inspect right})"
   end
 
   @impl JQLParser
-  def exec_is_in(left, right) do
-    "(#{left} IS IN #{right})"
+  def exec_is_not(left, right) do
+    "(#{left} IS NOT #{inspect right})"
   end
 
   @impl JQLParser
@@ -64,6 +64,16 @@ defmodule DefaultJQLParser do
   @impl JQLParser
   def exec_geq(left, right) do
     "(#{left} >= #{right})"
+  end
+
+  @impl JQLParser
+  def exec_iteral(value) do
+    "(#{value})"
+  end
+
+  @impl JQLParser
+  def exec_other(value) do
+    "(#{value})"
   end
 
 end
