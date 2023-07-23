@@ -113,9 +113,13 @@ defmodule JQLParser do
   defp parse_or(list, implementation) do
     case parse_and(list, implementation) do
       {value, []} -> {value, []}
-      {valueL, [{:or, _} | tail]} -> 
+      {valueL, [{:or, _}=orToken | tail]} -> 
         {valueR, tail} = parse_or(tail, implementation)
-        {implementation.exec_or(valueL, valueR), tail}
+        case {valueL, valueR} do
+          {nil, _} -> {valueR, [orToken | tail]}
+          {_, nil} -> {valueL, [orToken | tail]}
+          {_, _} -> {implementation.exec_or(valueL, valueR), tail}
+        end
       {value, list} -> {value, list}
     end
   end
@@ -123,9 +127,13 @@ defmodule JQLParser do
   defp parse_and(list, implementation) do
     case parse_exp(list, implementation) do
       {value, []} -> {value, []}
-      {valueL, [{:and, _} | tail]} -> 
+      {valueL, [{:and, _}=andToken | tail]} -> 
         {valueR, tail} = parse_and(tail, implementation)
-        {implementation.exec_and(valueL, valueR), tail}
+        case {valueL, valueR} do
+          {nil, _} -> {valueR, [andToken | tail]}
+          {_, nil} -> {valueL, [andToken | tail]}
+          {_, _} -> {implementation.exec_and(valueL, valueR), tail}
+        end
       {value, list} -> {value, list}
     end
   end
