@@ -109,7 +109,7 @@ defmodule JQLParser do
   end
 
   def parse([], implementation) do
-    implementation.exec_empty()
+    {implementation.exec_empty(), []}
   end
 
   def parse(list, implementation) do
