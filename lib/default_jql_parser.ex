@@ -77,7 +77,7 @@ defmodule JQLParser.Default do
   end
 
   @impl JQLParser
-  def exec_empty(value) do
+  def exec_empty() do
     ""
   end
 
