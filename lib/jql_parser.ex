@@ -18,6 +18,7 @@ defmodule JQLParser do
   @callback exec_geq(value :: any, value :: any) :: any
   @callback exec_literal(value :: any) :: any
   @callback exec_other(value :: any) :: any
+  @callback exec_empty() :: any
 
   @token_specs [
     %{regex: ~r/^or(?=[ (]|$)/, token: :or},
@@ -55,20 +56,6 @@ defmodule JQLParser do
 
     #%{regex: ~r/^order by /, token: :order_by},
   ]
-
-  def parse(arg, implementation \\ JQLParser.Default)
-
-  def parse(string, implementation) when is_binary(string) do
-    parse(getTokenList(string), implementation)
-  end
-
-  def parse([], _implementation) do
-    []
-  end
-
-  def parse(list, implementation) do
-    parse_or(list, implementation)
-  end
 
   ###
   #Tokenizer
@@ -114,6 +101,20 @@ defmodule JQLParser do
   ###
   #Parser
   ###
+
+  def parse(arg, implementation \\ JQLParser.Default)
+
+  def parse(string, implementation) when is_binary(string) do
+    parse(getTokenList(string), implementation)
+  end
+
+  def parse([], implementation) do
+    implementation.exec_empty()
+  end
+
+  def parse(list, implementation) do
+    parse_or(list, implementation)
+  end
 
   defp parse_or(list, implementation) do
     case parse_and(list, implementation) do
@@ -184,8 +185,8 @@ defmodule JQLParser do
     end
   end
   
-  defp parse_exp(list, _implementation)do
-    {nil, list}
+  defp parse_exp(list, implementation)do
+    implementation.exec_other list
   end
 
   defp parse_list([{:par_open, _} | tail]) do
