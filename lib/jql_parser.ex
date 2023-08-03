@@ -62,6 +62,10 @@ defmodule JQLParser do
     parse(getTokenList(string), implementation)
   end
 
+  def parse([], _implementation) do
+    []
+  end
+
   def parse(list, implementation) do
     parse_or(list, implementation)
   end
@@ -71,8 +75,9 @@ defmodule JQLParser do
   ###
   
   def getTokenList(string, token_specs \\ @token_specs) when is_binary(string) do
+    string = string |> String.trim() |> String.downcase()
     if hasMoreTokens?(string) do
-      {token , tail} = getNextToken(string |> String.downcase() |> String.trim(), token_specs)
+      {token , tail} = getNextToken(string, token_specs)
       [token | getTokenList(tail)]
     else
       []
@@ -82,7 +87,7 @@ defmodule JQLParser do
   defp hasMoreTokens?(string) do
     string != nil and string != ""
   end
-  
+
   defp getNextToken(string, token_specs) do
     spec = Enum.find(token_specs, fn (spec) ->
       Regex.match?(spec.regex, string)
@@ -90,13 +95,13 @@ defmodule JQLParser do
     if spec != nil do
       [match | _] = Regex.run(spec.regex, string, [:first])
       {
-        trim_string({spec.token, match}), 
+        string_to_literal({spec.token, match}), 
         String.trim_leading(string, match)
       }
     end
   end
 
-  def trim_string({token, match}) do
+  def string_to_literal({token, match}) do
     if token == :string do
       match = String.trim_leading(match, String.first(match))
       match = String.trim_trailing(match, String.last(match))
@@ -179,7 +184,7 @@ defmodule JQLParser do
     end
   end
   
-  defp parse_exp(list, _)do
+  defp parse_exp(list, _implementation)do
     {nil, list}
   end
 
