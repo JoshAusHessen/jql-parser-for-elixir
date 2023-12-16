@@ -23,12 +23,12 @@ defmodule JQLParser.Default do
 
   @impl JQLParser
   def exec_in(left, right) do
-    "(#{left} IN #{inspect right})"
+    "(#{left} IN #{inspect(right)})"
   end
 
   @impl JQLParser
   def exec_is_not(left, right) do
-    "(#{left} IS NOT #{inspect right})"
+    "(#{left} IS NOT #{inspect(right)})"
   end
 
   @impl JQLParser
@@ -80,5 +80,4 @@ defmodule JQLParser.Default do
   def exec_empty() do
     ""
   end
-
 end

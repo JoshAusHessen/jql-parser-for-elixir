@@ -1,6 +1,6 @@
 defmodule JQLParser do
   ###
-  #Callbacks
+  # Callbacks
   ###
 
   @callback exec_or(left :: any, right :: any) :: any
@@ -23,48 +23,47 @@ defmodule JQLParser do
   @token_specs [
     %{regex: ~r/^or(?=[ (]|$)/, token: :or},
     %{regex: ~r/^and(?=[ (]|$)/, token: :and},
-
     %{regex: ~r/^[(]/, token: :par_open},
     %{regex: ~r/^[)]/, token: :par_close},
     %{regex: ~r/^[,]/, token: :comma},
 
-    #expresions
+    # expresions
     %{regex: ~r/^not(?=[ (]|$)/, token: :not},
     %{regex: ~r/^is(?=[ (]|$)/, token: :is},
     %{regex: ~r/^in(?=[ (]|$)/, token: :in},
-
     %{regex: ~r/^=/, token: :eq},
     %{regex: ~r/^<(?!=)/, token: :lt},
     %{regex: ~r/^>(?!=)/, token: :gt},
     %{regex: ~r/^!=/, token: :neq},
     %{regex: ~r/^>=/, token: :geq},
     %{regex: ~r/^<=/, token: :leq},
-    #%{regex: ~r/^~/, token: :contains},
-    #%{regex: ~r/^!~/, token: :not_contains},
+    # %{regex: ~r/^~/, token: :contains},
+    # %{regex: ~r/^!~/, token: :not_contains},
 
-    #literals
+    # literals
     %{regex: ~r/^"[^"]*"/, token: :string},
     %{regex: ~r/^'[^']*'/, token: :string},
     %{regex: ~r/^[^ ,;()]+(?=[ ,;()]|$)/, token: :literal},
 
-    #unused
+    # unused
     %{regex: ~r/^empty(?=[ (]|$)/, token: :empty},
     %{regex: ~r/^-?\d+(?=[ (),]|$)/, token: :int},
     %{regex: ~r/^-?\d*.\d+(?=[ (),]|$)/, token: :float},
     %{regex: ~r/^-?\d*(,\d{3})*.\d+(?=[ (),]|$)/, token: :complex_float},
-    %{regex: ~r/^[^ \n,()]+(?=[ (),]|$)/, token: :other},
+    %{regex: ~r/^[^ \n,()]+(?=[ (),]|$)/, token: :other}
 
-    #%{regex: ~r/^order by /, token: :order_by},
+    # %{regex: ~r/^order by /, token: :order_by},
   ]
 
   ###
-  #Tokenizer
+  # Tokenizer
   ###
-  
+
   def getTokenList(string, token_specs \\ @token_specs) when is_binary(string) do
     string = string |> String.trim() |> String.downcase()
+
     if hasMoreTokens?(string) do
-      {token , tail} = getNextToken(string, token_specs)
+      {token, tail} = getNextToken(string, token_specs)
       [token | getTokenList(tail)]
     else
       []
@@ -76,13 +75,16 @@ defmodule JQLParser do
   end
 
   defp getNextToken(string, token_specs) do
-    spec = Enum.find(token_specs, fn (spec) ->
-      Regex.match?(spec.regex, string)
-    end)
+    spec =
+      Enum.find(token_specs, fn spec ->
+        Regex.match?(spec.regex, string)
+      end)
+
     if spec != nil do
       [match | _] = Regex.run(spec.regex, string, [:first])
+
       {
-        string_to_literal({spec.token, match}), 
+        string_to_literal({spec.token, match}),
         String.trim_leading(string, match)
       }
     end
@@ -99,7 +101,7 @@ defmodule JQLParser do
   end
 
   ###
-  #Parser
+  # Parser
   ###
 
   def parse(arg, implementation \\ JQLParser.Default)
@@ -118,33 +120,47 @@ defmodule JQLParser do
 
   defp parse_or(list, implementation) do
     case parse_and(list, implementation) do
-      {value, []} -> {value, []}
-      {valueL, [{:or, _}=orToken | tail]} -> 
+      {value, []} ->
+        {value, []}
+
+      {valueL, [{:or, _} = orToken | tail]} ->
         {valueR, tail} = parse_or(tail, implementation)
+
         case {valueL, valueR} do
           {nil, _} -> {valueR, [orToken | tail]}
           {_, nil} -> {valueL, [orToken | tail]}
           {_, _} -> {implementation.exec_or(valueL, valueR), tail}
         end
-      {value, list} -> {value, list}
+
+      {value, list} ->
+        {value, list}
     end
   end
 
   defp parse_and(list, implementation) do
     case parse_exp(list, implementation) do
-      {value, []} -> {value, []}
-      {valueL, [{:and, _}=andToken | tail]} -> 
+      {value, []} ->
+        {value, []}
+
+      {valueL, [{:and, _} = andToken | tail]} ->
         {valueR, tail} = parse_and(tail, implementation)
+
         case {valueL, valueR} do
           {nil, _} -> {valueR, [andToken | tail]}
           {_, nil} -> {valueL, [andToken | tail]}
           {_, _} -> {implementation.exec_and(valueL, valueR), tail}
         end
-      {value, list} -> {value, list}
+
+      {value, list} ->
+        {value, list}
     end
   end
 
-  defp parse_exp([{:par_open, _} | tail], implementation)do
+  defp parse_exp([], _implementation) do
+    {[], []}
+  end
+
+  defp parse_exp([{:par_open, _} | tail], implementation) do
     case parse_or(tail, implementation) do
       {value, []} -> {value, []}
       {value, [{:par_close, _} | tail]} -> {value, tail}
@@ -152,41 +168,52 @@ defmodule JQLParser do
     end
   end
 
-  defp parse_exp([{:not, _} | tail], implementation)do
+  defp parse_exp([{:not, _} | tail], implementation) do
     {value, tail} = parse_exp(tail, implementation)
     {implementation.exec_not(value), tail}
   end
 
-  defp parse_exp([{:literal, left} | tail], implementation)do
+  defp parse_exp([{:literal, left} | tail], implementation) do
     case tail do
       [{:not, _}, {:in, _} | tail] ->
         {right, tail} = parse_list(tail)
         {implementation.exec_not_in(left, right), tail}
+
       [{:in, _} | tail] ->
         {right, tail} = parse_list(tail)
         {implementation.exec_in(left, right), tail}
+
       [{:is, _}, {:not, _}, {:literal, right} | tail] ->
         {implementation.exec_is_not(left, right), tail}
+
       [{:is, _}, {:literal, right} | tail] ->
         {implementation.exec_is(left, right), tail}
-      [{:eq, _}, {:literal, right} | tail] -> 
+
+      [{:eq, _}, {:literal, right} | tail] ->
         {implementation.exec_eq(left, right), tail}
-      [{:lt, _}, {:literal, right} | tail] -> 
+
+      [{:lt, _}, {:literal, right} | tail] ->
         {implementation.exec_lt(left, right), tail}
-      [{:gt, _}, {:literal, right} | tail] -> 
+
+      [{:gt, _}, {:literal, right} | tail] ->
         {implementation.exec_gt(left, right), tail}
-      [{:neq, _}, {:literal, right} | tail] -> 
+
+      [{:neq, _}, {:literal, right} | tail] ->
         {implementation.exec_neq(left, right), tail}
-      [{:leq, _}, {:literal, right} | tail] -> 
+
+      [{:leq, _}, {:literal, right} | tail] ->
         {implementation.exec_leq(left, right), tail}
-      [{:geq, _}, {:literal, right} | tail] -> 
+
+      [{:geq, _}, {:literal, right} | tail] ->
         {implementation.exec_geq(left, right), tail}
-      _ -> {implementation.exec_literal(left), tail}
+
+      _ ->
+        {implementation.exec_literal(left), tail}
     end
   end
-  
-  defp parse_exp(list, implementation)do
-    implementation.exec_other list
+
+  defp parse_exp(list, implementation) do
+    implementation.exec_other(list)
   end
 
   defp parse_list([{:par_open, _} | tail]) do
@@ -217,5 +244,4 @@ defmodule JQLParser do
   defp parse_list_helper([{:par_close, _} | tail]) do
     {[], tail}
   end
-  
 end
